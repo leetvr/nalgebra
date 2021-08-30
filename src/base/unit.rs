@@ -10,6 +10,7 @@ use abomonation::Abomonation;
 
 use crate::allocator::Allocator;
 use crate::base::DefaultAllocator;
+use crate::num::Zero;
 use crate::storage::RawStorage;
 use crate::{Dim, Matrix, OMatrix, RealField, Scalar, SimdComplexField, SimdRealField};
 
@@ -149,7 +150,12 @@ pub trait Normed {
 
 /// # Construction with normalization
 impl<T: Normed> Unit<T> {
-    /// Normalize the given vector and return it wrapped on a `Unit` structure.
+    /// Normalize the given vector and return it wrapped on a `Unit` structure. Note that
+    /// `value` must be normalizable.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the norm of `value` is zero in debug builds.
     #[inline]
     pub fn new_normalize(value: T) -> Self {
         Self::new_and_get(value).0
@@ -166,10 +172,16 @@ impl<T: Normed> Unit<T> {
         Self::try_new_and_get(value, min_norm).map(|res| res.0)
     }
 
-    /// Normalize the given vector and return it wrapped on a `Unit` structure and its norm.
+    /// Normalize the given vector and return it wrapped on a `Unit` structure and its norm. Note
+    /// that `value` must be normalizable.
+    ////
+    /// # Panics
+    ///
+    /// Panics if the norm of `value` is zero in debug builds.
     #[inline]
     pub fn new_and_get(mut value: T) -> (Self, T::Norm) {
         let n = value.norm();
+        debug_assert_ne!(n, T::Norm::zero(), "Cannot normalize a zero vector",);
         value.unscale_mut(n.clone());
         (Unit { value }, n)
     }
@@ -421,5 +433,18 @@ where
             arr[14].clone().into_inner(),
             arr[15].clone().into_inner(),
         ]))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Quaternion;
+
+    #[test]
+    #[should_panic]
+    pub fn test_ensure_unit_quaternion_is_normalizable() {
+        let bad_quaternion = Quaternion::new(0.0, 0.0, 0.0, 0.0);
+        let _ = Unit::new_normalize(bad_quaternion);
     }
 }
